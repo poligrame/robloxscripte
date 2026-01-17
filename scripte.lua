@@ -17,7 +17,6 @@ local Settings = {
     ESP = false,
     Aimbot = false,
     AimFOV = 100,
-    AimSmooth = 0.5,
     AimPart = "Head",
     AutoClick = false,
     WallBang = false,
@@ -864,14 +863,28 @@ local function EnableAimbot(enabled)
             if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
                 local target = GetClosestPlayer()
                 if target then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
+                    -- Predict target position for moving targets
+                    local targetPos = target.Position
+                    local targetVel = target.Velocity
+                    if targetVel and targetVel.Magnitude > 0 then
+                        local myHead = LP.Character and LP.Character:FindFirstChild("Head")
+                        if myHead then
+                            local dist = (targetPos - myHead.Position).Magnitude
+                            local bulletTime = dist / 1000 -- Approximate bullet travel time
+                            targetPos = targetPos + (targetVel * bulletTime * 0.5)
+                        end
+                    end
+                    
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
                     if onScreen then
                         local mousePos = UserInputService:GetMouseLocation()
-                        local targetPos = Vector2.new(screenPos.X, screenPos.Y)
-                        local delta = (targetPos - mousePos) * Settings.AimSmooth
+                        local targetScreen = Vector2.new(screenPos.X, screenPos.Y)
+                        local deltaX = targetScreen.X - mousePos.X
+                        local deltaY = targetScreen.Y - mousePos.Y
                         
+                        -- Direct snap - no smoothing for maximum precision
                         if mousemoverel then
-                            mousemoverel(delta.X, delta.Y)
+                            mousemoverel(deltaX, deltaY)
                         end
                         
                         if Settings.AutoClick then
@@ -1100,7 +1113,6 @@ local function Init()
     CreateToggle(UI.Content, "Auto-Click", order, function(v) Settings.AutoClick = v end) order = order + 1
     CreateToggle(UI.Content, "WallBang", order, function(v) Settings.WallBang = v end) order = order + 1
     CreateSlider(UI.Content, "FOV (0=Infinite)", 0, 500, 100, order, function(v) Settings.AimFOV = v end) order = order + 1
-    CreateSlider(UI.Content, "Smoothness", 1, 100, 50, order, function(v) Settings.AimSmooth = v / 100 end) order = order + 1
     
     local aimPartDrop, aimPartContent, aimPartUpdate = CreateDropdown(UI.Content, "Aim Part", order)
     order = order + 1
