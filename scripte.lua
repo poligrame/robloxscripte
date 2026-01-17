@@ -23,7 +23,11 @@ local Settings = {
     InfJump = false,
     FlyKey = Enum.KeyCode.F,
     Spectating = false,
-    SpectateTarget = nil
+    SpectateTarget = nil,
+    OrbitTP = false,
+    OrbitTarget = nil,
+    OrbitDistance = 5,
+    OrbitSpeed = 10
 }
 
 local Connections = {}
@@ -781,6 +785,55 @@ local function Fling(player)
     end)
 end
 
+-- Orbit TP Functions
+local OrbitAngle = 0
+
+local function EnableOrbitTP(enabled)
+    Settings.OrbitTP = enabled
+    if enabled then
+        Connections.OrbitTP = RunService.RenderStepped:Connect(function()
+            if not Settings.OrbitTP or not Settings.OrbitTarget then return end
+            
+            local targetChar = Settings.OrbitTarget.Character
+            if not targetChar then return end
+            local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+            if not targetHRP then return end
+            
+            local myChar = LP.Character
+            if not myChar then return end
+            local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+            
+            -- Increment angle based on speed
+            OrbitAngle = OrbitAngle + (Settings.OrbitSpeed / 10)
+            if OrbitAngle >= 360 then OrbitAngle = 0 end
+            
+            -- Calculate orbit position
+            local rad = math.rad(OrbitAngle)
+            local offsetX = math.cos(rad) * Settings.OrbitDistance
+            local offsetZ = math.sin(rad) * Settings.OrbitDistance
+            
+            local targetPos = targetHRP.Position
+            local newPos = Vector3.new(targetPos.X + offsetX, targetPos.Y, targetPos.Z + offsetZ)
+            
+            -- Teleport and face target
+            myHRP.CFrame = CFrame.new(newPos, targetPos)
+        end)
+    else
+        if Connections.OrbitTP then Connections.OrbitTP:Disconnect() Connections.OrbitTP = nil end
+    end
+end
+
+local function SetOrbitTarget(player)
+    Settings.OrbitTarget = player
+end
+
+local function StopOrbitTP()
+    Settings.OrbitTP = false
+    Settings.OrbitTarget = nil
+    if Connections.OrbitTP then Connections.OrbitTP:Disconnect() Connections.OrbitTP = nil end
+end
+
 -- Aimbot Functions
 local function GetClosestPlayer()
     local closestTarget = nil
@@ -1107,6 +1160,87 @@ local function Init()
     end
     task.wait(0.1)
     aimPartUpdate()
+    
+    -- ORBIT TP
+    CreateSection(UI.Content, "ORBIT TP", order) order = order + 1
+    CreateToggle(UI.Content, "Orbit TP", order, EnableOrbitTP) order = order + 1
+    CreateSlider(UI.Content, "Distance", 1, 20, 5, order, function(v) Settings.OrbitDistance = v end) order = order + 1
+    CreateSlider(UI.Content, "Speed", 1, 50, 10, order, function(v) Settings.OrbitSpeed = v end) order = order + 1
+    
+    local orbitSearchBox = Create("TextBox", UI.Content, {
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = Colors.Secondary,
+        BorderSizePixel = 0,
+        PlaceholderText = "Search target for Orbit...",
+        PlaceholderColor3 = Color3.fromRGB(150, 150, 150),
+        Text = "",
+        TextColor3 = Colors.Text,
+        TextSize = 14,
+        Font = Enum.Font.Gotham,
+        LayoutOrder = order
+    })
+    order = order + 1
+    
+    local orbitSearchResults = Create("Frame", UI.Content, {
+        Size = UDim2.new(1, 0, 0, 0),
+        BackgroundColor3 = Colors.Secondary,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+        ClipsDescendants = true
+    })
+    Create("UIListLayout", orbitSearchResults, {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2)})
+    order = order + 1
+    
+    local orbitTargetLabel = Create("TextLabel", UI.Content, {
+        Size = UDim2.new(1, 0, 0, 25),
+        BackgroundColor3 = Colors.Secondary,
+        BorderSizePixel = 0,
+        Text = "Target: None",
+        TextColor3 = Colors.Text,
+        TextSize = 13,
+        Font = Enum.Font.Gotham,
+        LayoutOrder = order
+    })
+    order = order + 1
+    
+    local function UpdateOrbitSearch(query)
+        for _, c in pairs(orbitSearchResults:GetChildren()) do
+            if c:IsA("TextButton") then c:Destroy() end
+        end
+        if query == "" then
+            orbitSearchResults.Size = UDim2.new(1, 0, 0, 0)
+            return
+        end
+        local results = {}
+        for _, pl in pairs(Players:GetPlayers()) do
+            if pl ~= LP and string.lower(pl.Name):find(string.lower(query)) then
+                table.insert(results, pl)
+            end
+        end
+        local count = 0
+        for _, pl in pairs(results) do
+            if count >= 5 then break end
+            local btn = CreateButton(orbitSearchResults, pl.Name, count, function()
+                SetOrbitTarget(pl)
+                orbitTargetLabel.Text = "Target: " .. pl.Name
+                orbitTargetLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                orbitSearchBox.Text = ""
+                orbitSearchResults.Size = UDim2.new(1, 0, 0, 0)
+            end)
+            count = count + 1
+        end
+        orbitSearchResults.Size = UDim2.new(1, 0, 0, count * 32)
+    end
+    orbitSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        UpdateOrbitSearch(orbitSearchBox.Text)
+    end)
+    
+    CreateButton(UI.Content, "Stop Orbit TP", order, function()
+        StopOrbitTP()
+        orbitTargetLabel.Text = "Target: None"
+        orbitTargetLabel.TextColor3 = Colors.Text
+    end)
+    order = order + 1
     
     -- PLAYERS
     CreateSection(UI.Content, "PLAYERS", order) order = order + 1
