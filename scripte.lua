@@ -866,8 +866,8 @@ local function EnableAimbot(enabled)
                     local screenPos, onScreen = Camera:WorldToViewportPoint(target.Position)
                     if onScreen then
                         local mousePos = UserInputService:GetMouseLocation()
-                        local deltaX = screenPos.X - mousePos.X
-                        local deltaY = screenPos.Y - mousePos.Y
+                        local deltaX = (screenPos.X - mousePos.X) * 0.5
+                        local deltaY = (screenPos.Y - mousePos.Y) * 0.5
                         
                         if mousemoverel then
                             mousemoverel(deltaX, deltaY)
